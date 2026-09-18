@@ -3,9 +3,12 @@ package br.com.easystatus.easystatus.service;
 import br.com.easystatus.easystatus.dto.CrmRequestDTO;
 import br.com.easystatus.easystatus.dto.CrmResponseDTO;
 import br.com.easystatus.easystatus.entity.Crm;
+import br.com.easystatus.easystatus.entity.User;
 import br.com.easystatus.easystatus.exception.DataConflictException;
 import br.com.easystatus.easystatus.repository.CrmRepository;
+import br.com.easystatus.easystatus.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -17,6 +20,8 @@ import java.util.stream.Collectors;
 public class CrmServiceImpl implements CrmService {
 
     private final CrmRepository crmRepository;
+    private final AuditLogService auditLogService;
+    private final UserRepository userRepository;
 
     @Override
     public CrmResponseDTO create(CrmRequestDTO dto) {
@@ -26,6 +31,10 @@ public class CrmServiceImpl implements CrmService {
         if (crmRepository.findByUrl(dto.url()).isPresent()) {
             throw new DataConflictException("Já existe um CRM cadastrado com a URL: " + dto.url());
         }
+
+        // Buscar o analista atual para salvar na entidade Crm (opcional mas bom para rastreabilidade de quem cadastrou)
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User analista = userRepository.findByEmail(email).orElse(null);
 
         Crm crm = Crm.builder()
                 .name(dto.name())
@@ -38,9 +47,13 @@ public class CrmServiceImpl implements CrmService {
                 .pemPath(dto.pemPath())
                 .ativo(true)
                 .dataCriacao(LocalDateTime.now())
+                .analistaIncidente(analista)
                 .build();
 
         Crm savedCrm = crmRepository.save(crm);
+
+        // Registro de Auditoria
+        auditLogService.logAction("CREATE", "tb_crms", savedCrm.getId(), null, savedCrm);
 
         return toResponseDTO(savedCrm);
     }
@@ -61,30 +74,64 @@ public class CrmServiceImpl implements CrmService {
 
     @Override
     public CrmResponseDTO update(Integer id, CrmRequestDTO dto) {
-        Crm crm = crmRepository.findById(id)
+        Crm crmAntigo = crmRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("CRM não encontrado"));
 
-        crm.setName(dto.name());
-        crm.setUrl(dto.url());
-        crm.setIp(dto.ip());
-        crm.setNameDb(dto.nameDb());
-        crm.setLoginDb(dto.loginDb());
-        crm.setPasswordDb(dto.passwordDb());
-        crm.setDns(dto.dns());
-        crm.setPemPath(dto.pemPath());
-        crm.setDataAtualizacao(LocalDateTime.now());
+        // Clone/snapshot of the old object before modifying its reference since JPA tracks it
+        Crm snapshotAntigo = cloneCrmForAudit(crmAntigo);
 
-        return toResponseDTO(crmRepository.save(crm));
+        crmAntigo.setName(dto.name());
+        crmAntigo.setUrl(dto.url());
+        crmAntigo.setIp(dto.ip());
+        crmAntigo.setNameDb(dto.nameDb());
+        crmAntigo.setLoginDb(dto.loginDb());
+        crmAntigo.setPasswordDb(dto.passwordDb());
+        crmAntigo.setDns(dto.dns());
+        crmAntigo.setPemPath(dto.pemPath());
+        crmAntigo.setDataAtualizacao(LocalDateTime.now());
+
+        Crm crmAtualizado = crmRepository.save(crmAntigo);
+
+        // Registro de Auditoria (passando o snapshot do antigo e o novo)
+        auditLogService.logAction("UPDATE", "tb_crms", crmAtualizado.getId(), snapshotAntigo, crmAtualizado);
+
+        return toResponseDTO(crmAtualizado);
     }
 
     @Override
     public void delete(Integer id) {
-        // Implementação inicial via Soft Delete (inativação)
-        Crm crm = crmRepository.findById(id)
+        Crm crmAntigo = crmRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("CRM não encontrado"));
-        crm.setAtivo(false);
-        crm.setDataAtualizacao(LocalDateTime.now());
-        crmRepository.save(crm);
+                
+        Crm snapshotAntigo = cloneCrmForAudit(crmAntigo);
+
+        crmAntigo.setAtivo(false);
+        crmAntigo.setDataAtualizacao(LocalDateTime.now());
+        
+        Crm crmInativado = crmRepository.save(crmAntigo);
+        
+        // Registro de Auditoria
+        auditLogService.logAction("DELETE", "tb_crms", crmInativado.getId(), snapshotAntigo, null);
+    }
+
+    private Crm cloneCrmForAudit(Crm original) {
+        return Crm.builder()
+                .id(original.getId())
+                .name(original.getName())
+                .url(original.getUrl())
+                .logoUrl(original.getLogoUrl())
+                .dataPrimeiraFalha(original.getDataPrimeiraFalha())
+                .ip(original.getIp())
+                .nameDb(original.getNameDb())
+                .loginDb(original.getLoginDb())
+                .passwordDb(original.getPasswordDb())
+                .dns(original.getDns())
+                .pemPath(original.getPemPath())
+                .status(original.getStatus())
+                .dataCriacao(original.getDataCriacao())
+                .dataAtualizacao(original.getDataAtualizacao())
+                .ativo(original.getAtivo())
+                .build();
     }
 
     private CrmResponseDTO toResponseDTO(Crm crm) {
