@@ -2,6 +2,7 @@ package br.com.easystatus.easystatus.service;
 
 import br.com.easystatus.easystatus.dto.CrmRequestDTO;
 import br.com.easystatus.easystatus.dto.CrmResponseDTO;
+import br.com.easystatus.easystatus.dto.CrmUpdateRequestDTO;
 import br.com.easystatus.easystatus.entity.Crm;
 import br.com.easystatus.easystatus.entity.User;
 import br.com.easystatus.easystatus.exception.DataConflictException;
@@ -28,11 +29,12 @@ public class CrmServiceImpl implements CrmService {
         if (crmRepository.findByName(dto.name()).isPresent()) {
             throw new DataConflictException("Já existe um CRM cadastrado com o nome: " + dto.name());
         }
+
         if (crmRepository.findByUrl(dto.url()).isPresent()) {
             throw new DataConflictException("Já existe um CRM cadastrado com a URL: " + dto.url());
         }
 
-        // Buscar o analista atual para salvar na entidade Crm (opcional mas bom para rastreabilidade de quem cadastrou)
+        // Buscar o analista atual para salvar na entidade Crm
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
         User analista = userRepository.findByEmail(email).orElse(null);
 
@@ -73,27 +75,48 @@ public class CrmServiceImpl implements CrmService {
     }
 
     @Override
-    public CrmResponseDTO update(Integer id, CrmRequestDTO dto) {
+    public CrmResponseDTO update(Integer id, CrmUpdateRequestDTO dto) {
         Crm crmAntigo = crmRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("CRM não encontrado"));
 
-        // Clone/snapshot of the old object before modifying its reference since JPA tracks it
+        // Clone/snapshot do estado anterior para auditoria
         Crm snapshotAntigo = cloneCrmForAudit(crmAntigo);
 
         crmAntigo.setName(dto.name());
         crmAntigo.setUrl(dto.url());
         crmAntigo.setIp(dto.ip());
-        crmAntigo.setNameDb(dto.nameDb());
-        crmAntigo.setLoginDb(dto.loginDb());
-        crmAntigo.setPasswordDb(dto.passwordDb());
         crmAntigo.setDns(dto.dns());
-        crmAntigo.setPemPath(dto.pemPath());
+
+        // Atualiza os dados de infraestrutura somente se novos valores forem informados.
+        // Caso contrário, mantém os valores já existentes no banco.
+        if (dto.nameDb() != null && !dto.nameDb().isBlank()) {
+            crmAntigo.setNameDb(dto.nameDb());
+        }
+
+        if (dto.loginDb() != null && !dto.loginDb().isBlank()) {
+            crmAntigo.setLoginDb(dto.loginDb());
+        }
+
+        if (dto.passwordDb() != null && !dto.passwordDb().isBlank()) {
+            crmAntigo.setPasswordDb(dto.passwordDb());
+        }
+
+        if (dto.pemPath() != null && !dto.pemPath().isBlank()) {
+            crmAntigo.setPemPath(dto.pemPath());
+        }
+
         crmAntigo.setDataAtualizacao(LocalDateTime.now());
 
         Crm crmAtualizado = crmRepository.save(crmAntigo);
 
-        // Registro de Auditoria (passando o snapshot do antigo e o novo)
-        auditLogService.logAction("UPDATE", "tb_crms", crmAtualizado.getId(), snapshotAntigo, crmAtualizado);
+        // Registro de Auditoria
+        auditLogService.logAction(
+                "UPDATE",
+                "tb_crms",
+                crmAtualizado.getId(),
+                snapshotAntigo,
+                crmAtualizado
+        );
 
         return toResponseDTO(crmAtualizado);
     }
@@ -102,16 +125,22 @@ public class CrmServiceImpl implements CrmService {
     public void delete(Integer id) {
         Crm crmAntigo = crmRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("CRM não encontrado"));
-                
+
         Crm snapshotAntigo = cloneCrmForAudit(crmAntigo);
 
         crmAntigo.setAtivo(false);
         crmAntigo.setDataAtualizacao(LocalDateTime.now());
-        
+
         Crm crmInativado = crmRepository.save(crmAntigo);
-        
+
         // Registro de Auditoria
-        auditLogService.logAction("DELETE", "tb_crms", crmInativado.getId(), snapshotAntigo, null);
+        auditLogService.logAction(
+                "DELETE",
+                "tb_crms",
+                crmInativado.getId(),
+                snapshotAntigo,
+                null
+        );
     }
 
     private Crm cloneCrmForAudit(Crm original) {
@@ -143,6 +172,9 @@ public class CrmServiceImpl implements CrmService {
                 crm.getDataPrimeiraFalha(),
                 crm.getIp(),
                 crm.getDns(),
+                crm.getNameDb(),
+                crm.getLoginDb(),
+                crm.getPemPath(),
                 crm.getStatus(),
                 crm.getDataCriacao(),
                 crm.getDataAtualizacao(),
