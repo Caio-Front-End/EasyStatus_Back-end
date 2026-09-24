@@ -1,5 +1,6 @@
 package br.com.easystatus.easystatus.controller;
 
+import br.com.easystatus.easystatus.dto.CrmPublicResponseDTO;
 import br.com.easystatus.easystatus.dto.CrmRequestDTO;
 import br.com.easystatus.easystatus.dto.CrmResponseDTO;
 import br.com.easystatus.easystatus.service.CrmService;
@@ -41,8 +42,29 @@ public class CrmController {
         return ResponseEntity.ok(crmService.findById(id));
     }
 
+    @GetMapping("/public/status")
+    public ResponseEntity<List<CrmPublicResponseDTO>> getPublicStatus() {
+        List<CrmPublicResponseDTO> response = crmService.findAll()
+                .stream()
+                .map(crm -> new CrmPublicResponseDTO(
+                        crm.id(),
+                        crm.name(),
+                        crm.url(),
+                        crm.logoUrl(),
+                        crm.status(),
+                        crm.ativo()
+                ))
+                .toList();
+            
+
+        return ResponseEntity.ok(response);
+    }
+
     @PutMapping("/{id}")
-    public ResponseEntity<CrmResponseDTO> update(@PathVariable Integer id, @Valid @RequestBody CrmRequestDTO dto) {
+    public ResponseEntity<CrmResponseDTO> update(
+            @PathVariable Integer id,
+            @Valid @RequestBody CrmRequestDTO dto
+    ) {
         return ResponseEntity.ok(crmService.update(id, dto));
     }
 
