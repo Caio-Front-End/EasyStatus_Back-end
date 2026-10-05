@@ -14,6 +14,18 @@ public record CrmResponseDTO(
 
         LocalDateTime dataPrimeiraFalha,
 
+        LocalDateTime dataTomaCiencia,
+
+        Integer analistaIncidenteId,
+
+        String analistaIncidenteEmail,
+
+        Integer ultimoStatusCode,
+
+        String ultimaMensagemErro,
+
+        Integer ultimaLatencyMs,
+
         String ip,
 
         String dns,

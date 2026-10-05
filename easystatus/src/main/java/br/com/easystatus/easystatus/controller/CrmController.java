@@ -1,12 +1,7 @@
 package br.com.easystatus.easystatus.controller;
 
-import br.com.easystatus.easystatus.dto.CrmPublicResponseDTO;
-import br.com.easystatus.easystatus.dto.CrmRequestDTO;
-import br.com.easystatus.easystatus.dto.CrmResponseDTO;
-import br.com.easystatus.easystatus.dto.CrmUpdateRequestDTO;
-import br.com.easystatus.easystatus.service.CrmService;
-import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
+import java.util.List;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -18,7 +13,13 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
+import br.com.easystatus.easystatus.dto.CrmPublicResponseDTO;
+import br.com.easystatus.easystatus.dto.CrmRequestDTO;
+import br.com.easystatus.easystatus.dto.CrmResponseDTO;
+import br.com.easystatus.easystatus.dto.CrmUpdateRequestDTO;
+import br.com.easystatus.easystatus.service.CrmService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/crms")
@@ -47,13 +48,15 @@ public class CrmController {
     public ResponseEntity<List<CrmPublicResponseDTO>> getPublicStatus() {
         List<CrmPublicResponseDTO> response = crmService.findAll()
                 .stream()
+                .filter(crm -> crm.ativo())
                 .map(crm -> new CrmPublicResponseDTO(
                         crm.id(),
                         crm.name(),
                         crm.url(),
                         crm.logoUrl(),
                         crm.status(),
-                        crm.ativo()
+                        crm.ativo(),
+                        crm.dataTomaCiencia() != null
                 ))
                 .toList();
 
@@ -72,5 +75,29 @@ public class CrmController {
     public ResponseEntity<Void> delete(@PathVariable Integer id) {
         crmService.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/manutencao")
+    public ResponseEntity<Void> entrarManutencao(@PathVariable Integer id) {
+        crmService.entrarManutencao(id);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{id}/sair-manutencao")
+    public ResponseEntity<Void> sairManutencao(@PathVariable Integer id) {
+        crmService.sairManutencao(id);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{id}/toma-ciencia")
+    public ResponseEntity<Void> tomarCiencia(@PathVariable Integer id) {
+        crmService.tomarCiencia(id);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{id}/desfazer-ciencia")
+    public ResponseEntity<Void> desfazerCiencia(@PathVariable Integer id) {
+        crmService.desfazerCiencia(id);
+        return ResponseEntity.ok().build();
     }
 }

@@ -1,6 +1,7 @@
 package br.com.easystatus.easystatus.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 public record CrmRequestDTO(
@@ -10,6 +11,10 @@ public record CrmRequestDTO(
 
         @NotBlank(message = "A URL é obrigatória")
         @Size(max = 255, message = "A URL deve ter no máximo 255 caracteres")
+        @Pattern(
+                regexp = "^https?://(([a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,}|(\\d{1,3}\\.){3}\\d{1,3})(:\\d+)?(/.*)?$",
+                message = "A URL deve ser válida e começar com http:// ou https://"
+        )
         String url,
 
         @NotBlank(message = "O IP é obrigatório")
@@ -28,7 +33,6 @@ public record CrmRequestDTO(
         @Size(max = 255, message = "A senha do banco deve ter no máximo 255 caracteres")
         String passwordDb,
 
-        @NotBlank(message = "O DNS é obrigatório")
         @Size(max = 255, message = "O DNS deve ter no máximo 255 caracteres")
         String dns,
 
