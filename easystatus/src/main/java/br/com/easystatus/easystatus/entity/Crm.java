@@ -42,6 +42,9 @@ public class Crm {
     @Column(name = "data_primeira_falha")
     private LocalDateTime dataPrimeiraFalha;
 
+    @Column(name = "data_toma_ciencia")
+    private LocalDateTime dataTomaCiencia;
+
     @Column(name = "ip", nullable = false, length = 45)
     private String ip;
 

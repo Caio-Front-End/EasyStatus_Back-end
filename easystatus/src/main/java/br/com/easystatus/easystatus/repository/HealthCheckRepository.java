@@ -11,7 +11,10 @@ import java.util.List;
 
 @Repository
 public interface HealthCheckRepository extends JpaRepository<HealthCheck, Integer> {
+
     List<HealthCheck> findByCrmIdOrderByDataCriacaoDesc(Integer crmId);
+
+    HealthCheck findFirstByCrmIdOrderByDataCriacaoDesc(Integer crmId);
 
     @Modifying
     @Transactional
